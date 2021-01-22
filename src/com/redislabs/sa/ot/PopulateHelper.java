@@ -2,6 +2,12 @@ package com.redislabs.sa.ot;
 
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.Pipeline;
+import redis.clients.jedis.Transaction;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class PopulateHelper {
     int stringSizeInKB=10;
@@ -29,9 +35,10 @@ public class PopulateHelper {
         if(null != this.keyArray) {
             for (int x = this.keyArray.length; x > 0; x--) {
                 pipeline.sadd(setName, this.keyArray[x-1]);
-                //r.sadd(setName, this.keyArray[x-1]);
             }
             pipeline.sync();
+            pipeline.close();
+            System.out.println("pipeline.sync() and pipeline.close() called after creation of the Set called: "+setName);
         }else{
             System.out.println("need to call generateKeys with number of keys to create first");
         }
@@ -43,16 +50,34 @@ public class PopulateHelper {
         System.out.println("Each . that follows represents 100 Strings \n\n");
         for(int x = this.keyArray.length;x>0;x--){
             pipeline.set(this.keyArray[x-1],buildStringToLoadIntoRedis(x));
-            //r.set(this.keyArray[x-1],buildStringToLoadIntoRedis(x));
             if(x%100 == 0){
                 System.out.print(". ");
             }
             if(x%1000==1){
-                System.out.println("");
+                System.out.println();
             }
         }
         pipeline.sync();
     }
+
+    public void loadMultiStringsIntoRedisUsingKeys( Jedis r){
+        System.out.println("Loading "+this.keyArray.length+" Strings of "+this.stringSizeInKB+" kb in size each... . ");
+        System.out.println("Each . that follows represents 100 Strings \n\n");
+        ArrayList<String> list = new ArrayList<>();
+        for(int x = 0;x< this.keyArray.length;x++) {
+            list.add(this.keyArray[x]);
+            list.add(buildStringToLoadIntoRedis(x));
+            if ((x % 100 == 0) ||(this.keyArray.length-x<100)){
+                System.out.print(". ");
+                r.mset((String[]) list.toArray(new String[list.size()]));
+                list.clear();
+            }
+            if (x % 1000 == 1) {
+                System.out.println();
+            }
+        }
+    }
+
 
     private String buildStringToLoadIntoRedis(int IDNum){
         String payload = "";
